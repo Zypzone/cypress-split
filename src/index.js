@@ -83,7 +83,7 @@ function cypressSplit(on, config) {
     }
 
     specResults[absoluteSpecPath] = results
-    specAbsoluteToRelative[absoluteSpecPath] = spec.relative
+    specAbsoluteToRelative[absoluteSpecPath] = spec.relative.split(path.sep).join('/')
   })
 
   let SPLIT = process.env.SPLIT || config.env.split || config.env.SPLIT
@@ -91,6 +91,7 @@ function cypressSplit(on, config) {
   let SPLIT_FILE = process.env.SPLIT_FILE || config.env.splitFile
   let SPLIT_OUTPUT_FILE =
     process.env.SPLIT_OUTPUT_FILE || config.env.outputFile || SPLIT_FILE
+  let RELATIVE_SPEC_PATH = process.env.RELATIVE_SPEC_PATH || config.env.relativeSpecPath || config.env.RELATIVE_SPEC_PATH || false
 
   console.log('%s Timings are read from %s', label, SPLIT_FILE)
   console.log('%s Timings will be written to %s', label, SPLIT_OUTPUT_FILE)
@@ -117,8 +118,8 @@ function cypressSplit(on, config) {
       .map((s) => s.trim())
       .filter(Boolean)
       .map((specFilename) => {
-        // make sure every spec filename is absolute
-        return path.resolve(specFilename)
+        // if relative isn't specified make sure every spec filename is absolute
+        return (RELATIVE_SPEC_PATH === 'true' || RELATIVE_SPEC_PATH === true ? specFilename : path.resolve(specFilename)).split(path.sep).join('/')
       })
     console.log(
       '%s have explicit %d spec %s',
@@ -160,9 +161,12 @@ function cypressSplit(on, config) {
 
   if (isDefined(SPLIT) && isDefined(SPLIT_INDEX)) {
     if (!specs) {
-      const returnAbsolute = true
+      const returnAbsolute = RELATIVE_SPEC_PATH === 'true' || RELATIVE_SPEC_PATH === true ? false : true
+
       // @ts-ignore
       specs = getSpecs(config, undefined, returnAbsolute)
+
+      specs.forEach((spec, index) => { this[index] = spec.split(path.sep).join('/') }, specs)
     }
 
     console.log('%s there are %d found specs', label, specs.length)
@@ -196,7 +200,8 @@ function cypressSplit(on, config) {
             .reduce((sum, duration) => (sum += duration), 0) /
           previousDurations.length
         const specsWithDurations = specs.map((specName) => {
-          const relativeSpec = path.relative(cwd, specName)
+          const relativeSpec = path.relative(cwd, specName).split(path.sep).join('/')
+
           const foundInfo = previousDurations.find(
             (item) => item.spec === relativeSpec,
           )
@@ -291,7 +296,12 @@ function cypressSplit(on, config) {
 
         const specDurations = splitSpecs
           .map((absoluteSpecPath, k) => {
+            if (RELATIVE_SPEC_PATH === 'true' || RELATIVE_SPEC_PATH === true) {
+              absoluteSpecPath = path.resolve(absoluteSpecPath).split(path.sep).join('/')
+            }
+
             const relativeName = specAbsoluteToRelative[absoluteSpecPath]
+
             const specResult = specResults[absoluteSpecPath]
             if (specResult) {
               const passsed =
